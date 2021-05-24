@@ -42,7 +42,7 @@ namespace IconSenderModule
             ar.GetResponse(out Response r);
             if (SendPingData(r))
             {
-                IAsyncResult res = IconSender.I.IWeb.SendPlayerListAsync();
+                IAsyncResult res = IconSender.I.Sender.SendPlayerListAsync();
                 res.AsyncWaitHandle.WaitOne();
             }
             ar.Dispose();
