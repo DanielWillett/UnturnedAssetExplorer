@@ -10,147 +10,12 @@ using UnityEngine;
 
 namespace IconSenderModule
 {
-    public class Query
+    public class WebInterface
     {
-        public static readonly TimeSpan DefaultTimeout = new TimeSpan(0, 0, 5);
-        public const string InvalidCallResponse = "INVALID CALL";
-        public string URL;
-        public string Parameters;
-        public string FailureReply;
-        private string function;
-        public Query(string URL, string Parameters, string failureResponse)
-        {
-            this.URL = URL;
-            this.Parameters = Parameters;
-            this.FailureReply = failureResponse;
-        }
-        public Query(string URL, string function, Dictionary<string, string> Parameters, string failureResponse)
-        {
-            this.URL = URL;
-            this.FailureReply = failureResponse;
-            this.function = function;
-            string p = "call=" + function;
-            //build url
-            for (int i = 0; i < Parameters.Count; i++)
-            {
-                p += "&";
-                p += Uri.EscapeUriString(Parameters.Keys.ElementAt(i));
-                p += "=";
-                p += Uri.EscapeUriString(Parameters.Values.ElementAt(i));
-            }
-            this.Parameters = p;
-        }
-        public delegate void AsyncQueryDelegate(WebClientWithTimeout _client, out Response res);
-        public void ExecuteQueryAsync(WebClientWithTimeout _client, out Response r)
-        {
-            while (_client.IsBusy)
-                Thread.Sleep(1);
-            try
-            {
-                string url = URL + '?' + Parameters;
-                if (url.Length > 65519)
-                {
-                    r.Reply = "TOO LONG";
-                    r.Success = false;
-                    if(function != "sendLog")
-                        IconSender.Log("Web Request Too long: \n" + Parameters.Substring(0, Parameters.Length > 200 ? 200 : Parameters.Length) + "...", "error");
-                    return;
-                }
-                if (function != "sendLog")
-                    IconSender.Log("Starting web request: \"" + url.Substring(0, url.Length > 200 ? 200 : url.Length) + '\"');
-                r.Reply = _client.UploadString(url, "");
-            }
-            catch (WebException ex)
-            {
-                r.Reply = ex.Message;
-                r.Success = false;
-                if (function != "sendLog")
-                    IconSender.Log("Web Request Error: " + ex.Message, "error");
-                return;
-            }
-            r.Success = r.Reply != FailureReply && r.Reply != InvalidCallResponse;
-        }
-    }
-    public class WebClientWithTimeout : WebClient
-    {
-        public TimeSpan Timeout = Query.DefaultTimeout;
-        // https://stackoverflow.com/questions/1789627/how-to-change-the-timeout-on-a-net-webclient-object
-        protected override WebRequest GetWebRequest(Uri address)
-        {
-            WebRequest w = base.GetWebRequest(address);
-            w.Timeout = (int)Math.Round(Timeout.TotalMilliseconds);
-            return w;
-        }
-    }
-    public struct Response
-    {
-        public bool Success;
-        public string Reply;
-
-        public Response(bool Success, string Reply)
-        {
-            this.Success = Success;
-            this.Reply = Reply;
-        }
-    }
-    public class WebInterface : IDisposable
-    {
-        private WebClientWithTimeout _client;
-        private const string URL = "http://localhost:8080/";
         public WebInterface()
         {
-            _client = new WebClientWithTimeout();
-            _client.Headers[HttpRequestHeader.ContentType] = "application/x-www-form-urlencoded";
-        }
-        public IAsyncResult PingAsync()
-        {
-            return BasicQueryAsync("ping", new Dictionary<string, string> { { "dt", DateTime.UtcNow.ToString("o") } },
-                "No time provided.", new AsyncCallback(WebCallbacks.Ping));
-        }
-        public IAsyncResult BasicQueryAsync(string function, Dictionary<string, string> data, string failureResponse, AsyncCallback callback)
-        {
-            Query q = new Query(URL, function, data, failureResponse);
-            Query.AsyncQueryDelegate caller = new Query.AsyncQueryDelegate(q.ExecuteQueryAsync);
-            return caller.BeginInvoke(_client, out _, callback, caller);
-        }
-        public Response BasicQuerySync(string function, Dictionary<string, string> data, string failureResponse)
-        {
-            string Parameters = "call=" + function;
-            //build url
-            for (int i = 0; i < data.Count; i++)
-            {
-                Parameters += "&";
-                Parameters += Uri.EscapeUriString(data.Keys.ElementAt(i));
-                Parameters += "=";
-                Parameters += Uri.EscapeUriString(data.Values.ElementAt(i));
-            }
-            while (_client.IsBusy)
-                Thread.Sleep(1);
-            Response r = new Response();
-            try
-            {
-                string url = URL + '?' + Parameters;
-                if (url.Length > 65519)
-                {
-                    r.Reply = "TOO LONG";
-                    r.Success = false;
-                    return r;
-                }
-                r.Reply = _client.UploadString(url, "");
-            }
-            catch (WebException ex)
-            {
-                r.Reply = ex.Message;
-                r.Success = false;
-                return r;
-            }
-            r.Success = r.Reply != failureResponse && r.Reply != Query.InvalidCallResponse;
-            return r;
-        }
-        public void Dispose()
-        {
-            _client.Dispose();
-            GC.SuppressFinalize(this);
+            //_client = new WebClientWithTimeout();
+            //_client.Headers[HttpRequestHeader.ContentType] = "application/x-www-form-urlencoded";
         }
         public void SetHeldItem(ushort id)
         {
@@ -545,20 +410,6 @@ namespace IconSenderModule
             };
             return Parameters;
         }
-        public IAsyncResult SendPlayerListAsync()
-        {
-            return BasicQueryAsync("sendPlayerList", GetPlayerListParams(), "FAILURE", new AsyncCallback(WebCallbacks.SendPlayerList));
-        }
-        internal void Log(string info, string severity = "info")
-        {
-            try
-            {
-                BasicQuerySync("sendLog", new Dictionary<string, string> { { "log", Uri.EscapeUriString(info) }, { "severity", Uri.EscapeUriString(severity) } }, "FAILURE");
-            } catch (Exception ex)
-            {
-                BasicQueryAsync("sendLog", new Dictionary<string, string> { { "log", Uri.EscapeUriString(ex.ToString()) }, { "severity", "error" } }, "FAILURE", new AsyncCallback(WebCallbacks.Log));
-            }
-        }
         internal void SaveVehicle(VehicleAsset asset)
         {
             if (asset == null) return;
@@ -661,6 +512,162 @@ namespace IconSenderModule
             } else
             {
                 IconSender.Log("Failed to get object from player's look.");
+            }
+        }
+        public void SaveAllAttachments()
+        {
+            try
+            {
+                Asset[] assets = Assets.find(EAssetType.ITEM);
+                List<ItemGripAsset> grips = new List<ItemGripAsset>() { null };
+                List<ItemBarrelAsset> barrels = new List<ItemBarrelAsset>() { null };
+                List<ItemMagazineAsset> magazines = new List<ItemMagazineAsset>() { null };
+                List<ItemSightAsset> sights = new List<ItemSightAsset>() { null };
+                List<ItemTacticalAsset> tacticals = new List<ItemTacticalAsset>() { null };
+                List<ItemGunAsset> guns = new List<ItemGunAsset>();
+                for (int i = 0; i < assets.Length; i++)
+                {
+                    Asset asset = assets[i];
+                    if (asset is ItemGunAsset gun)
+                        guns.Add(gun);
+                    else if (asset is ItemGripAsset grip)
+                        grips.Add(grip);
+                    else if (asset is ItemBarrelAsset barrel)
+                        barrels.Add(barrel);
+                    else if (asset is ItemMagazineAsset magazine)
+                        magazines.Add(magazine);
+                    else if (asset is ItemSightAsset sight)
+                        sights.Add(sight);
+                    else if (asset is ItemTacticalAsset tactical)
+                        tacticals.Add(tactical);
+                }
+                IconSender.Log($"{assets.Length} assets: {grips.Count} grips, {barrels.Count} barrels, {magazines.Count} magazines, {sights.Count} sights, {tacticals.Count} tacticals, {guns.Count} guns.");
+                this.total = 0;
+                this.totalRendered = 0;
+                for (int i = 0; i < guns.Count; i++)
+                {
+                    ItemGunAsset gun = guns[i];
+                    for (int s = 0; s < sights.Count; s++)
+                    {
+                        ItemSightAsset sight = sights[s];
+                        if (IsAttachmentValid(sight, gun))
+                        {
+                            for (int g = 0; g < grips.Count; g++)
+                            {
+                                ItemGripAsset grip = grips[g];
+                                if (IsAttachmentValid(grip, gun))
+                                {
+                                    for (int b = 0; b < barrels.Count; b++)
+                                    {
+                                        ItemBarrelAsset barrel = barrels[b];
+                                        if (IsAttachmentValid(barrel, gun))
+                                        {
+                                            for (int m = 0; m < magazines.Count; m++)
+                                            {
+                                                ItemMagazineAsset magazine = magazines[m];
+                                                if (IsAttachmentValid(magazine, gun))
+                                                {
+                                                    for (int t = 0; t < tacticals.Count; t++)
+                                                    {
+                                                        ItemTacticalAsset tactical = tacticals[t];
+                                                        if (IsAttachmentValid(tactical, gun))
+                                                        {
+                                                            total++;
+                                                            byte[] state = gun.getState(true);
+                                                            if (sight != null)
+                                                                Buffer.BlockCopy(BitConverter.GetBytes(sight.id), 0, state, 0, 2);
+                                                            else
+                                                            {
+                                                                state[0] = 0;
+                                                                state[1] = 0;
+                                                            }
+                                                            if (tactical != null)
+                                                                Buffer.BlockCopy(BitConverter.GetBytes(tactical.id), 0, state, 2, 2);
+                                                            else
+                                                            {
+                                                                state[2] = 0;
+                                                                state[3] = 0;
+                                                            }
+                                                            if (grip != null)
+                                                                Buffer.BlockCopy(BitConverter.GetBytes(grip.id), 0, state, 4, 2);
+                                                            else
+                                                            {
+                                                                state[4] = 0;
+                                                                state[5] = 0;
+                                                            }
+                                                            if (barrel != null)
+                                                                Buffer.BlockCopy(BitConverter.GetBytes(barrel.id), 0, state, 6, 2);
+                                                            else
+                                                            {
+                                                                state[6] = 0;
+                                                                state[7] = 0;
+                                                            }
+                                                            if (magazine != null)
+                                                                Buffer.BlockCopy(BitConverter.GetBytes(magazine.id), 0, state, 8, 2);
+                                                            else
+                                                            {
+                                                                state[8] = 0;
+                                                                state[9] = 0;
+                                                            }
+                                                            state[10] = magazine == null ? (byte)0 : magazine.amount;
+                                                            state[11] = 2;
+                                                            state[12] = 100;
+                                                            state[13] = 100;
+                                                            state[14] = 100;
+                                                            state[15] = 100;
+                                                            state[16] = 100;
+                                                            ItemTool.getIcon(gun.id, 0, gun.qualityMax, state, gun, null, string.Empty, string.Empty, 
+                                                                gun.size_x * 512, gun.size_y * 512, false, true, (txt) => OnReady(gun.id, state, txt));
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                IconSender.Log(ex.ToString(), "ERROR");
+            }
+        }
+        private bool IsAttachmentValid(ItemCaliberAsset attachment, ItemGunAsset gun)
+        {
+            if (attachment == null) return true;
+            for (int index2 = 0; index2 < attachment.calibers.Length; ++index2)
+            {
+                for (int index3 = 0; index3 < gun.magazineCalibers.Length; ++index3)
+                {
+                    if (attachment.calibers[index2] == gun.magazineCalibers[index3])
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+        const string SAVELOC = @"C:\Users\danny\OneDrive\,Data Backup\Projects\ASP.NET\UCWebsite\loadout_assets\Attachments\";
+        private int totalRendered = 0;
+        private int total = 0;
+        private void OnReady(ushort itemID, byte[] state, Texture2D texture)
+        {
+            byte[] newState = new byte[10];
+            Buffer.BlockCopy(state, 0, newState, 0, 10);
+            WriteTexture(texture, SAVELOC + $"{itemID}_{BitConverter.ToUInt16(state, 0)}_{BitConverter.ToUInt16(state, 2)}_{BitConverter.ToUInt16(state, 4)}_{BitConverter.ToUInt16(state, 6)}_{BitConverter.ToUInt16(state, 8)}.png", true);
+            UnityEngine.Object.Destroy(texture);
+            totalRendered++;
+            if (totalRendered >= total)
+            {
+                IconSender.Log($"{totalRendered} / ${total}");
+                IconSender.Log("Done with " + total.ToString() + " renders.");
+            }
+            else if (totalRendered % 25 == 0)
+            {
+                IconSender.Log($"{totalRendered} / ${total}");
             }
         }
     }

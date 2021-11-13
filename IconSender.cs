@@ -53,7 +53,7 @@ namespace IconSenderModule
             UnityEngine.Object.Destroy(texture);
         }
     }
-    public class IconSender : IModuleNexus
+    public class IconSender : MonoBehaviour, IModuleNexus
     {
         public static IconSender I;
         public WebInterface Sender;
@@ -62,6 +62,7 @@ namespace IconSenderModule
         {
             try
             {
+                UnturnedLog.info("Module started lmao");
                 if (!Directory.Exists(ExtraIconInfo.directoryBase))
                     Directory.CreateDirectory(ExtraIconInfo.directoryBase);
                 if (!Directory.Exists(ExtraIconInfo.ItemsPath))
@@ -85,17 +86,16 @@ namespace IconSenderModule
                 I = this;
                 Level.onLevelLoaded += LoadedLevel;
                 Sender = new WebInterface();
-                IAsyncResult r = Sender.PingAsync();
-                r.AsyncWaitHandle.WaitOne();
                 this.Log("Initializing");
                 ChatManager.onChatted += ChatProcess;
                 this.Log("Initialized");
+                Patches.DoPatching(); 
             } catch (Exception ex)
             {
                 this.Log(ex.ToString(), "error");
+                UnturnedLog.error(ex);
             }
         }
-
         private void ChatProcess(SteamPlayer player, EChatMode mode, ref Color chatted, ref bool isRich, string text, ref bool isVisible)
         {
             this.Log("[" + player.playerID.playerName + "]: \"" + text + "\"", "chat");
@@ -251,6 +251,10 @@ namespace IconSenderModule
                             this.Log("not good args");
                         }
                     }
+                    else if (cmd.StartsWith("attachments"))
+                    {
+                        Sender.SaveAllAttachments();
+                    }
                     else if (cmd.StartsWith("give"))
                     {
                         string[] command = text.Split(' ');
@@ -278,10 +282,11 @@ namespace IconSenderModule
         }
         public void shutdown()
         {
+            Patches.Unpatch();
             this.Log("shutdown");
             ChatManager.onChatted -= ChatProcess;
             Level.onLevelLoaded -= LoadedLevel;
-            Sender?.Dispose();
+            //Sender?.Dispose();
         }
 
         /*
@@ -291,12 +296,16 @@ namespace IconSenderModule
 
         public void Log(string info, string severity = "info", bool dummy = false)
         {
-            Sender?.Log(info, severity);
+            //Sender?.Log(info, severity);
             Debug.Log(info);
-            TextWriter Writer = File.CreateText(ExtraIconInfo.directoryBase + "log.txt");
-            Writer.WriteLine($"[{severity.ToUpper()}] {info}");
-            Writer.Close();
-            Writer.Dispose();
+            using (FileStream fs = File.Open(ExtraIconInfo.directoryBase + "log.txt", FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read))
+            {
+                fs.Seek(0, SeekOrigin.End);
+                byte[] bytes = System.Text.Encoding.UTF8.GetBytes($"[{severity.ToUpper()}] {info}\n");
+                fs.Write(bytes, 0, bytes.Length);
+                fs.Close();
+                fs.Dispose();
+            }
         }
         public static void Log(string info, string severity = "info") => I?.Log(info, severity);
     }
