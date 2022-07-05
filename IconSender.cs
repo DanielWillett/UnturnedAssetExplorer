@@ -4,8 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace IconSenderModule
 {
@@ -16,7 +16,7 @@ namespace IconSenderModule
         /// <summary>
         /// CHANGE ME
         /// </summary>
-        public const string directoryBase = @"C:\Users\danny\OneDrive\Desktop\json\";
+        public const string directoryBase = @"C:\UnturnedExport\";
         public static readonly string ItemsPath = directoryBase + @"Items\";
         public static readonly string ItemMeshesPath = directoryBase + @"Meshes\Items\";
         public static readonly string VehicleMeshesPath = directoryBase + @"Meshes\Vehicles\";
@@ -179,6 +179,23 @@ namespace IconSenderModule
                                     this.Log("count find asset", "warning");
                                 this.Log("tried to save item");
                             }
+                            else if (cmd.StartsWith("savelegacymats"))
+                            {
+                                string path = Level.info.path + "/Terrain/Materials.unity3d";
+                                if (!ReadWrite.fileExists(path, false, false))
+                                    return;
+                                Bundle bundle = Bundles.getBundle(path, false);
+                                Texture2D[] texture2DArray = bundle.loadAll<Texture2D>();
+                                foreach (Texture2D t2d in texture2DArray)
+                                {
+                                    string outp = Path.Combine(ExtraIconInfo.MapPath, Provider.map, "Legacy Textures", t2d.name + ".png");
+                                    FileInfo outpfi = new FileInfo(outp);
+                                    Directory.CreateDirectory(outpfi.DirectoryName);
+                                    Sender.WriteTexture(t2d, outp, true);
+                                    this.Log("saved: " + t2d.name);
+                                }
+                                this.Log("tried to save textures");
+                            }
                             else if (cmd.StartsWith("savevehicle"))
                             {
                                 VehicleAsset asset = (VehicleAsset)Assets.find(EAssetType.VEHICLE, id);
@@ -249,11 +266,99 @@ namespace IconSenderModule
                         else
                         {
                             this.Log("not good args");
-                        }
+                        } 
                     }
                     else if (cmd.StartsWith("attachments"))
                     {
                         Sender.SaveAllAttachments();
+                    }
+                    else if (cmd.StartsWith("setskin"))
+                    {
+                        string[] command = text.Split(' ');
+                        if (command.Length > 1 && ushort.TryParse(command[1], out ushort id) && Assets.find(EAssetType.SKIN, id) is SkinAsset skin)
+                        {
+                            if (player.player.equipment != null && player.player.equipment.isEquipped)
+                            {
+                                WebInterface.SetHeldSkin(player.player.equipment, id);
+                                this.Log("Found skin " + skin.name);
+                            }
+                            else
+                            {
+                                this.Log("Item not equipped but found skin " + skin.name);
+                            }
+                        }
+                        else
+                        {
+                            this.Log("Skin not found or command invalid. (-setskin 36000)");
+                        }
+                    }
+                    else if (cmd.StartsWith("getassetvalue"))
+                    {
+                        string[] command = text.Split(' ');
+                        if (command.Length > 1)
+                        {
+                            if (player.player.equipment != null && player.player.equipment.isEquipped && player.player.equipment.asset != null)
+                            {
+                                ItemAsset asset = player.player.equipment.asset;
+                                Type type = asset.GetType();
+                                FieldInfo fi = type.GetField(command[1], BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                                object result = null;
+                                if (fi == null)
+                                {
+                                    PropertyInfo pi = type.GetProperty(command[1], BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                                    if (pi == null)
+                                    {
+                                        this.Log("Property or field not found.");
+                                        return;
+                                    }
+                                    result = pi.GetValue(asset);
+                                }
+                                else result = fi.GetValue(asset);
+                                this.Log("Result: " + (result?.ToString() ?? "null"));
+                            }
+                            else
+                            {
+                                this.Log("Item not equipped");
+                            }
+                        }
+                    }
+                    else if (cmd.StartsWith("getskinassetvalue"))
+                    {
+                        string[] command = text.Split(' ');
+                        if (command.Length > 1)
+                        {
+                            if (player.player.equipment != null && player.player.equipment.isEquipped && player.player.equipment.asset != null)
+                            {
+                                if (!(Assets.find(EAssetType.SKIN, Patches.last) is SkinAsset asset))
+                                {
+                                    this.Log("Skin not found.");
+                                    return;
+                                }
+                                Type type = asset.GetType();
+                                FieldInfo fi = type.GetField(command[1], BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                                object result = null;
+                                if (fi == null)
+                                {
+                                    PropertyInfo pi = type.GetProperty(command[1], BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                                    if (pi == null)
+                                    {
+                                        this.Log("Property or field not found.");
+                                        return;
+                                    }
+                                    result = pi.GetValue(asset);
+                                }
+                                else result = fi.GetValue(asset);
+                                this.Log("Result: " + (result?.ToString() ?? "null"));
+                            }
+                            else
+                            {
+                                this.Log("Item not equipped");
+                            }
+                        }
+                        else
+                        {
+                            this.Log("Skin not found or command invalid. (-setskin 36000)");
+                        }
                     }
                     else if (cmd.StartsWith("give"))
                     {
@@ -268,12 +373,15 @@ namespace IconSenderModule
                             this.Log("not good args");
                         }
                     }
+                    else if (cmd.StartsWith("loopcontents"))
+                    {
+                        WebInterface.LoopContentBundles();
+                    }
                 }
             } catch (Exception ex)
             {
                 this.Log(ex.ToString(), "error");
             }
-            
         }
 
         private void LoadedLevel(int level)

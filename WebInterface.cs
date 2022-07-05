@@ -3,9 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Net;
+using System.Reflection;
 using System.Text;
-using System.Threading;
 using UnityEngine;
 
 namespace IconSenderModule
@@ -46,9 +45,12 @@ namespace IconSenderModule
                 asset = itemAsset,
                 sendingAll = sendingAll
             };
-            ItemTool.getIcon(itemAsset.id, 0, 100, itemAsset.getState(), itemAsset, null, string.Empty, string.Empty, itemAsset.size_x * 512, itemAsset.size_y * 512, false, true, new ItemIconReady(extraItemIconInfo.onItemIconReady));
-            if(!sendingAll)
-                ChatManager.say("Saved " + itemAsset.itemName, UnityEngine.Color.red);
+            if (!sendingAll || !File.Exists(ExtraIconInfo.ItemsPath + itemAsset.id.ToString() + ".png"))
+            {
+                ItemTool.getIcon(itemAsset.id, 0, 100, itemAsset.getState(), itemAsset, null, string.Empty, string.Empty, itemAsset.size_x * 512, itemAsset.size_y * 512, false, true, new ItemIconReady(extraItemIconInfo.onItemIconReady));
+                if (!sendingAll)
+                    ChatManager.say("Saved " + itemAsset.itemName, Color.red);
+            }
         }
         public void SaveItemAsset(ItemAsset asset, bool savingAll = false)
         {
@@ -141,7 +143,7 @@ namespace IconSenderModule
         }
         public void SaveAsset(Transform item, Asset asset, bool savingAll = false)
         {
-            string basePath = string.Empty;
+            string basePath;
             if (asset is ItemAsset)
                 basePath = ExtraIconInfo.ItemMeshesPath;
             else if (asset is VehicleAsset)
@@ -159,12 +161,12 @@ namespace IconSenderModule
                 mesh = meshes[0];
                 if (mesh == null)
                 {
-                    if (asset is ItemAsset)
-                        IconSender.Log(((ItemAsset)asset).itemName + " doesn't have a mesh.");
-                    else if (asset is VehicleAsset)
-                        IconSender.Log(((VehicleAsset)asset).vehicleName + " doesn't have a mesh.");
-                    else if (asset is ObjectAsset)
-                        IconSender.Log(((ObjectAsset)asset).objectName + " doesn't have a mesh.");
+                    if (asset is ItemAsset asset2)
+                        IconSender.Log(asset2.itemName + " doesn't have a mesh.");
+                    else if (asset is VehicleAsset asset1)
+                        IconSender.Log(asset1.vehicleName + " doesn't have a mesh.");
+                    else if (asset is ObjectAsset asset3)
+                        IconSender.Log(asset3.objectName + " doesn't have a mesh.");
                     else
                         IconSender.Log(asset.name + " doesn't have a mesh.");
                 }
@@ -188,14 +190,14 @@ namespace IconSenderModule
                 }
                 if (!savingAll)
                 {
-                    if (asset is ItemAsset)
-                        ChatManager.say("Saved " + ((ItemAsset)asset).itemName, Color.red);
-                    else if (asset is VehicleAsset)
-                        ChatManager.say("Saved " + ((VehicleAsset)asset).vehicleName, Color.red);
-                    else if (asset is ObjectAsset)
-                        ChatManager.say("Saved " + ((ObjectAsset)asset).objectName, Color.red);
+                    if (asset is ItemAsset asset1)
+                        ChatManager.say("Saved " + asset1.itemName, Color.red);
+                    else if (asset is VehicleAsset asset2)
+                        ChatManager.say("Saved " + asset2.vehicleName, Color.red);
+                    else if (asset is ObjectAsset asset3)
+                        ChatManager.say("Saved " + asset3.objectName, Color.red);
                     else
-                        ChatManager.say("Saved " + ((VehicleAsset)asset).name, Color.red);
+                        ChatManager.say("Saved " + asset.name, Color.red);
                 }
             } else
             {
@@ -206,12 +208,12 @@ namespace IconSenderModule
                     {
                         if (m == meshes.Length - 1)
                         {
-                            if (asset is ItemAsset)
-                                IconSender.Log(((ItemAsset)asset).itemName + " doesn't have a mesh.");
-                            else if (asset is VehicleAsset)
-                                IconSender.Log(((VehicleAsset)asset).vehicleName + " doesn't have a mesh.");
-                            else if (asset is ObjectAsset)
-                                IconSender.Log(((ObjectAsset)asset).objectName + " doesn't have a mesh.");
+                            if (asset is ItemAsset asset1)
+                                IconSender.Log(asset1.itemName + " doesn't have a mesh.");
+                            else if (asset is VehicleAsset asset2)
+                                IconSender.Log(asset2.vehicleName + " doesn't have a mesh.");
+                            else if (asset is ObjectAsset asset3)
+                                IconSender.Log(asset3.objectName + " doesn't have a mesh.");
                             else
                                 IconSender.Log(asset.name + " doesn't have a mesh.");
                             break;
@@ -239,55 +241,65 @@ namespace IconSenderModule
                 }
                 if (!savingAll)
                 {
-                    if (asset is ItemAsset)
-                        ChatManager.say("Saved " + ((ItemAsset)asset).itemName, Color.red);
-                    else if (asset is VehicleAsset)
-                        ChatManager.say("Saved " + ((VehicleAsset)asset).vehicleName, Color.red);
+                    if (asset is ItemAsset asset1)
+                        ChatManager.say("Saved " + asset1.itemName, Color.red);
+                    else if (asset is VehicleAsset asset2)
+                        ChatManager.say("Saved " + asset2.vehicleName, Color.red);
                     else
-                        ChatManager.say("Saved " + ((VehicleAsset)asset).name, Color.red);
+                        ChatManager.say("Saved " + asset.name, Color.red);
                 }
             }
         }
-        public void WriteTexture(Texture2D texture, string path, bool destroyinput = true)
+        public void WriteTexture(Texture2D texture, string path, bool destroyinput = false)
         {
+            byte[] png;
             try
             {
-                byte[] png = texture.EncodeToPNG();
+                png = texture.EncodeToPNG();
                 if (png == null)
+                {
                     IconSender.Log("png byte array is null of path: " + path, "info");
+                    goto rt;
+                }
                 else if (png.Length == 0)
+                {
                     IconSender.Log("png byte array is empty: " + texture.width.ToString() + ',' + texture.height.ToString() + " of path: " + path, "info");
+                    goto rt;
+                }
                 else
                     File.WriteAllBytes(path, png);
                 if (destroyinput)
                     UnityEngine.Object.Destroy(texture);
+                return;
             }
             catch (ArgumentException)
             {
-                // Reading unreadable textures: https://fargesportfolio.com/unity-texture-texture2d-rendertexture/
-                RenderTexture rt = RenderTexture.GetTemporary(texture.width, texture.height);
-                Texture2D newText = new Texture2D(texture.width, texture.height, TextureFormat.ARGB32, false)
-                {
-                    name = texture.name
-                };
-                RenderTexture currentActiveRT = RenderTexture.active;
-                RenderTexture.active = rt;
-                Graphics.Blit(texture, rt);
-                newText.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0, false);
-                newText.Apply(false);
-                RenderTexture.active = currentActiveRT;
-                RenderTexture.ReleaseTemporary(rt);
-                if(destroyinput)
-                    UnityEngine.Object.Destroy(texture);
-                byte[] png = newText.EncodeToPNG();
-                if (png == null)
-                    IconSender.Log("png byte array is null of path: " + path, "info");
-                else if (png.Length == 0)
-                    IconSender.Log("png byte array is empty: " + newText.width.ToString() + ',' + newText.height.ToString() + " of path: " + path, "info");
-                else
-                    File.WriteAllBytes(path, png);
-                UnityEngine.Object.Destroy(newText);
+                goto rt;
             }
+            rt:
+            // Reading unreadable textures: https://fargesportfolio.com/unity-texture-texture2d-rendertexture/
+            RenderTexture rt = RenderTexture.GetTemporary(texture.width, texture.height);
+            Texture2D newText = new Texture2D(texture.width, texture.height, TextureFormat.ARGB32, false)
+            {
+                name = texture.name
+            };
+            RenderTexture currentActiveRT = RenderTexture.active;
+            RenderTexture.active = rt;
+            Graphics.Blit(texture, rt);
+            newText.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0, false);
+            newText.Apply(false);
+            RenderTexture.active = currentActiveRT;
+            RenderTexture.ReleaseTemporary(rt);
+            if (destroyinput)
+                UnityEngine.Object.Destroy(texture);
+            png = newText.EncodeToPNG();
+            if (png == null)
+                IconSender.Log("png byte array is null of path: " + path, "info");
+            else if (png.Length == 0)
+                IconSender.Log("png byte array is empty: " + newText.width.ToString() + ',' + newText.height.ToString() + " of path: " + path, "info");
+            else
+                File.WriteAllBytes(path, png);
+            UnityEngine.Object.Destroy(newText);
         } 
         public void WriteRenderTexture(RenderTexture texture, string path)
         {
@@ -308,12 +320,66 @@ namespace IconSenderModule
         }
         public void SaveTerrain(PlayerLook look)
         {
+            string dir = ExtraIconInfo.TerrainPath + Level.level.name + '\\';
+            if (!Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+            if (LevelGround.terrain != null)
+                WriteRenderTexture(LevelGround.terrain.terrainData.heightmapTexture, dir + "heightmap_primary.png");
+            if (LevelGround.terrain2 != null)
+                WriteRenderTexture(LevelGround.terrain2.terrainData.heightmapTexture, dir + "heightmap_secondary.png");
+            foreach (GroundMaterial material in LevelGround._materials)
+            {
+                if (material != null && material.layer != null)
+                {
+                    Texture2D texture = material.layer.diffuseTexture;
+                    if (texture != null)
+                    {
+                        string name = texture.name + "_DIF";
+                        if (File.Exists(dir + texture.name + "_DIF.png"))
+                        {
+                            int copyid = 1;
+                            while (File.Exists(dir + texture.name + "_DIF" + '_' + copyid.ToString() + ".png"))
+                            {
+                                copyid++;
+                            }
+                            name = texture.name + "_DIF" + '_' + copyid.ToString() + ".png";
+                        }
+                        WriteTexture(texture, dir + name + "_DIF.png");
+                    }
+                    texture = material.layer.normalMapTexture;
+                    if (texture != null)
+                    {
+                        string name = texture.name + "_N";
+                        if (File.Exists(dir + texture.name + "_N.png"))
+                        {
+                            int copyid = 1;
+                            while (File.Exists(dir + texture.name + "_N" + '_' + copyid.ToString() + ".png"))
+                            {
+                                copyid++;
+                            }
+                            name = texture.name + "_N" + '_' + copyid.ToString() + ".png";
+                        }
+                        WriteTexture(texture, dir + name + "_N.png");
+                    }
+                    texture = material.layer.maskMapTexture;
+                    if (texture != null)
+                    {
+                        string name = texture.name + "_MASK";
+                        if (File.Exists(dir + texture.name + "_MASK.png"))
+                        {
+                            int copyid = 1;
+                            while (File.Exists(dir + texture.name + "_MASK" + '_' + copyid.ToString() + ".png"))
+                            {
+                                copyid++;
+                            }
+                            name = texture.name + "_MASK" + '_' + copyid.ToString() + ".png";
+                        }
+                        WriteTexture(texture, dir + name + "_MASK.png");
+                    }
+                }
+            }
             if(TryGetFromLook(look, out Terrain terrain, RayMasks.GROUND | RayMasks.GROUND2))
             {
-                string dir = ExtraIconInfo.TerrainPath + Level.level.name + '\\';
-                if (!Directory.Exists(dir))
-                    Directory.CreateDirectory(dir);
-                WriteRenderTexture(terrain.terrainData.heightmapTexture, dir + "heightmap.png");
                 IconSender.Log("Wrote heightmap.");
                 foreach(TerrainLayer layer in terrain.terrainData.terrainLayers)
                 {
@@ -544,6 +610,7 @@ namespace IconSenderModule
                 IconSender.Log($"{assets.Length} assets: {grips.Count} grips, {barrels.Count} barrels, {magazines.Count} magazines, {sights.Count} sights, {tacticals.Count} tacticals, {guns.Count} guns.");
                 this.total = 0;
                 this.totalRendered = 0;
+                this.start = DateTime.Now;
                 for (int i = 0; i < guns.Count; i++)
                 {
                     ItemGunAsset gun = guns[i];
@@ -616,8 +683,13 @@ namespace IconSenderModule
                                                             state[14] = 100;
                                                             state[15] = 100;
                                                             state[16] = 100;
-                                                            ItemTool.getIcon(gun.id, 0, gun.qualityMax, state, gun, null, string.Empty, string.Empty, 
-                                                                gun.size_x * 512, gun.size_y * 512, false, true, (txt) => OnReady(gun.id, state, txt));
+                                                            string path = SAVELOC + $"{gun.id}\\{BitConverter.ToUInt16(state, 0)}_{BitConverter.ToUInt16(state, 2)}_{BitConverter.ToUInt16(state, 4)}_{BitConverter.ToUInt16(state, 6)}_{BitConverter.ToUInt16(state, 8)}.png";
+                                                            if (!File.Exists(path))
+                                                                ItemTool.getIcon(gun.id, 0, gun.qualityMax, state, gun,
+                                                                    null, string.Empty, string.Empty,
+                                                                    gun.size_x * 128, gun.size_y * 128, false, true,
+                                                                    (txt) => OnReady(gun.id, state, txt));
+                                                            else --total;
                                                         }
                                                     }
                                                 }
@@ -638,11 +710,17 @@ namespace IconSenderModule
         private bool IsAttachmentValid(ItemCaliberAsset attachment, ItemGunAsset gun)
         {
             if (attachment == null) return true;
-            for (int index2 = 0; index2 < attachment.calibers.Length; ++index2)
+            if (attachment.type == EItemType.SIGHT && !gun.hasSight) return false;
+            if (attachment.type == EItemType.GRIP && !gun.hasGrip) return false;
+            if (attachment.type == EItemType.BARREL && !gun.hasBarrel) return false;
+            if (attachment.type == EItemType.TACTICAL && !gun.hasTactical) return false;
+            if (attachment.calibers.Length == 0) return true;
+            ushort[] calibers = attachment.type == EItemType.MAGAZINE ? gun.magazineCalibers : gun.attachmentCalibers;
+            for (int i = 0; i < attachment.calibers.Length; ++i)
             {
-                for (int index3 = 0; index3 < gun.magazineCalibers.Length; ++index3)
+                for (int j = 0; j < calibers.Length; ++j)
                 {
-                    if (attachment.calibers[index2] == gun.magazineCalibers[index3])
+                    if (attachment.calibers[i] == calibers[j])
                     {
                         return true;
                     }
@@ -650,25 +728,190 @@ namespace IconSenderModule
             }
             return false;
         }
-        const string SAVELOC = @"C:\Users\danny\OneDrive\,Data Backup\Projects\ASP.NET\UCWebsite\loadout_assets\Attachments\";
+        const string SAVELOC = @"C:\UnturnedExport\Attachments\";
         private int totalRendered = 0;
         private int total = 0;
+        private DateTime start;
         private void OnReady(ushort itemID, byte[] state, Texture2D texture)
         {
-            byte[] newState = new byte[10];
-            Buffer.BlockCopy(state, 0, newState, 0, 10);
-            WriteTexture(texture, SAVELOC + $"{itemID}_{BitConverter.ToUInt16(state, 0)}_{BitConverter.ToUInt16(state, 2)}_{BitConverter.ToUInt16(state, 4)}_{BitConverter.ToUInt16(state, 6)}_{BitConverter.ToUInt16(state, 8)}.png", true);
+            if (!Directory.Exists(SAVELOC + $"{itemID}\\"))
+                Directory.CreateDirectory(SAVELOC + $"{itemID}\\");
+            WriteTexture(texture, SAVELOC + $"{itemID}\\{BitConverter.ToUInt16(state, 0)}_{BitConverter.ToUInt16(state, 2)}_{BitConverter.ToUInt16(state, 4)}_{BitConverter.ToUInt16(state, 6)}_{BitConverter.ToUInt16(state, 8)}.png", true);
             UnityEngine.Object.Destroy(texture);
             totalRendered++;
-            if (totalRendered >= total)
+            if (totalRendered >= total - 1)
             {
-                IconSender.Log($"{totalRendered} / ${total}");
+                IconSender.Log($"{totalRendered} / {total}");
                 IconSender.Log("Done with " + total.ToString() + " renders.");
             }
-            else if (totalRendered % 25 == 0)
+            else if (totalRendered % 100 == 0)
             {
-                IconSender.Log($"{totalRendered} / ${total}");
+                TimeSpan estTimeRemaining = TimeSpan.FromSeconds((DateTime.Now - start).TotalSeconds / (totalRendered / (float)total));
+                IconSender.Log($"({itemID}) -> {totalRendered} / {total} -> {(totalRendered * 100f / total):N4}% -> [~{estTimeRemaining.TotalDays:N0}:{estTimeRemaining.Hours:N0}:{estTimeRemaining.Minutes:N0} remaining]");
             }
+        }
+        public static ushort awaitingSkin = 0;
+        public static void SetHeldSkin(PlayerEquipment equipment, ushort skin)
+        {
+            awaitingSkin = skin;
+            ushort oldid = equipment.asset.sharedSkinLookupID;
+            bool set = false;
+            if (!equipment.channel.owner.itemSkins.ContainsKey(oldid))
+            {
+                set = true;
+                equipment.channel.owner.itemSkins.Add(oldid, -1);
+            }
+            equipment.ReceiveEquip(equipment.equippedPage, equipment.equipped_x, equipment.equipped_y, equipment.asset.GUID, 100, equipment.state, equipment.useable.GetNetId());
+            awaitingSkin = 0;
+            if (set)
+            {
+                equipment.channel.owner.itemSkins.Remove(oldid);
+            }
+        }
+        public static void ResetHeldSkin(PlayerEquipment equipment)
+        {
+            awaitingSkin = 0;
+            equipment.ReceiveEquip(equipment.equippedPage, equipment.equipped_x, equipment.equipped_y, equipment.asset.GUID, 100, equipment.state, equipment.useable.GetNetId());
+        }
+
+        public static void LoopContentBundles()
+        {
+            List<string> children = new List<string>();
+            foreach (KeyValuePair<string, RootContentDirectory> kvp in Assets.rootContentDirectories)
+            {
+                IconSender.Log("Root Directory: " + kvp.Value.name);
+                FieldInfo info =
+                    typeof(RootContentDirectory).GetField("assetBundle",
+                        BindingFlags.NonPublic | BindingFlags.Instance);
+                if (info.GetValue(kvp.Value) is AssetBundle bundle)
+                {
+                    string[] files = bundle.GetAllAssetNames();
+                    IconSender.Log("Files: " + files.Length);
+                    for (int i = 0; i < files.Length; i++)
+                        IconSender.Log(files[i]);
+                }
+                Recurse(kvp.Value, children, kvp.Value);
+                children.Clear();
+            }
+        }
+        static void Recurse(ContentDirectory dir, List<string> children, RootContentDirectory root)
+        {
+            bool isRoot = dir == root;
+            int index = children.Count;
+            if (!isRoot) children.Add(dir.name);
+            string p = root.name + "\\";
+            if (!isRoot) p += string.Join("\\", children) + "\\";
+            string[] paths = new string[4]
+            {
+                ExtraIconInfo.directoryBase + $"Content\\{p}Textures\\",
+                ExtraIconInfo.directoryBase + $"Content\\{p}Meshes\\",
+                ExtraIconInfo.directoryBase + $"Content\\{p}Materials\\",
+                ExtraIconInfo.directoryBase + $"Content\\{p}"
+            };
+            if (!Directory.Exists(paths[3]))
+                Directory.CreateDirectory(paths[3]);
+
+            IconSender.Log(dir.name);
+            string p2 = string.Join("/", children) + "/";
+            foreach (ContentFile file in dir.files)
+            {
+                string p3 = p2 + file.name + Path.GetExtension(file.file);
+                IconSender.Log(p3);
+                if (file.guessedType == typeof(Texture2D))
+                {
+                    Texture2D t2d = root.loadAsset<Texture2D>(p3);
+                    if (t2d == null)
+                    {
+                        IconSender.Log("Unable to export file " + p3 + " as Texture2D");
+                        continue;
+                    }
+                    if (!Directory.Exists(paths[0]))
+                        Directory.CreateDirectory(paths[0]);
+                    string ext = ".png";
+                    string name = Path.GetFileNameWithoutExtension(file.file);
+                    string path = paths[0] + name;
+                    int addon = -1;
+                    while (File.Exists(path + (addon == -1 ? string.Empty : "_" + addon.ToString()) + ext))
+                    {
+                        addon++;
+                    }
+
+                    path = path + (addon == -1 ? string.Empty : "_" + addon.ToString()) + ext;
+
+                    IconSender.I.Sender.WriteTexture(t2d, path);
+                }
+                else if (file.guessedType == typeof(Mesh))
+                {
+                    Mesh mesh = root.loadAsset<Mesh>(p3);
+                    if (mesh == null)
+                    {
+                        IconSender.Log("Unable to export file " + p3 + " as Mesh");
+                        continue;
+                    }
+                    if (!Directory.Exists(paths[1]))
+                        Directory.CreateDirectory(paths[1]);
+                    string ext = ".obj";
+                    string name = Path.GetFileNameWithoutExtension(file.file);
+                    string path = paths[1] + name;
+                    int addon = -1;
+                    while (File.Exists(path + (addon == -1 ? string.Empty : "_" + addon.ToString()) + ext))
+                    {
+                        addon++;
+                    }
+
+                    path = path + (addon == -1 ? string.Empty : "_" + addon.ToString()) + ext;
+                    string val = ObjExporter.MeshToString(mesh, true, null);
+                    File.WriteAllText(path, val);
+                }
+                else if (file.guessedType == typeof(Material))
+                {
+                    Material mat = root.loadAsset<Material>(p3);
+                    if (mat == null)
+                    {
+                        IconSender.Log("Unable to export file " + p3 + " as Material");
+                        continue;
+                    }
+                    if (!Directory.Exists(paths[2]))
+                        Directory.CreateDirectory(paths[2]);
+                    string dirname = Path.GetFileNameWithoutExtension(file.file);
+                    string dirpath = paths[2] + dirname;
+                    int diraddon = -1;
+                    while (Directory.Exists(dirpath + (diraddon == -1 ? string.Empty : "_" + diraddon.ToString()) + "\\"))
+                    {
+                        diraddon++;
+                    }
+                    dirpath = dirpath + (diraddon == -1 ? string.Empty : "_" + diraddon.ToString()) + "\\";
+                    Directory.CreateDirectory(dirpath);
+                    int[] @is = mat.GetTexturePropertyNameIDs();
+                    for (int i = 0; i < @is.Length; i++)
+                    {
+                        if (mat.GetTexture(@is[i]) is Texture2D t2d)
+                        {
+                            string ext = ".png";
+                            string name = "T_" + t2d.name + "_" + @is[i].ToString();
+                            string path = dirpath + name;
+                            int addon = -1;
+                            while (File.Exists(path + (addon == -1 ? string.Empty : "_" + addon.ToString()) + ext))
+                            {
+                                addon++;
+                            }
+                            path = path + (addon == -1 ? string.Empty : "_" + addon.ToString()) + ext;
+
+                            IconSender.I.Sender.WriteTexture(t2d, path);
+                        }
+                    }
+                }
+                else
+                {
+                    IconSender.Log("Unable to export file " + p3 + " of type " + (file.guessedType?.Name ?? "null"));
+                }
+            }
+            foreach (ContentDirectory dir2 in dir.directories.Values)
+            {
+                Recurse(dir2, children, root);
+            }
+            if (!isRoot && index < children.Count)
+                children.RemoveAt(index);
         }
     }
 }

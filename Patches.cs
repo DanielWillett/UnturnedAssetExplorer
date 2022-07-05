@@ -1,11 +1,5 @@
 ﻿using HarmonyLib;
-using SDG.Unturned;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using UnityEngine;
+using SDG.Provider;
 
 namespace IconSenderModule
 {
@@ -23,12 +17,20 @@ namespace IconSenderModule
         {
             Patcher.UnpatchAll();
         }
-
-        [HarmonyPatch(typeof(PlayerLifeUI), "updateCompass")]
+        public static ushort last = 0;
+        [HarmonyPatch(typeof(TempSteamworksEconomy), "getInventorySkinID")]
         [HarmonyPrefix]
-        public static bool UpdateCompassPatch()
+        public static bool SkinOverridePatch(int item, ref ushort __result)
         {
-            return Player.player.equipment.itemID > 0;
+            if (WebInterface.awaitingSkin == 0) return true;
+            __result = WebInterface.awaitingSkin;
+            return false;
+        }
+        [HarmonyPatch(typeof(TempSteamworksEconomy), "getInventorySkinID")]
+        [HarmonyPostfix]
+        public static void SkinOverridePatchPost(int item, ref ushort __result)
+        {
+            last = __result;
         }
     }
 }
